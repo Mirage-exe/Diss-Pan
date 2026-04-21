@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PSYOP — Leaflet Drop Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --olive:       #4a5c2a;
+  --olive-dark:  #2e3a18;
+  --olive-light: #6b7c40;
+  --olive-dim:   #3a4a20;
+  --khaki:       #8a9060;
+  --khaki-light: #b0b87a;
+  --steel:       #5a6068;
+  --steel-dark:  #2c3035;
+  --steel-light: #8a9098;
+  --steel-pale:  #c8cdd4;
+  --amber:       #d4900a;
+  --amber-light: #f0b030;
+  --red-alert:   #c0392b;
+  --green-ok:    #2e7d32;
+  --warn-yellow: #b8860b;
+  --bg:          #1a1e12;
+  --bg2:         #222818;
+  --bg3:         #1e2416;
+  --surface:     #2a3020;
+  --surface2:    #323828;
+  --border:      #3a4428;
+  --border2:     #4a5535;
+  --text:        #d8dcc8;
+  --text-dim:    #8a9070;
+  --text-bright: #f0f4e0;
+  --mono:        'Share Tech Mono', monospace;
+  --title:       'Oswald', sans-serif;
+  --body:        'Rajdhani', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  min-height: 100vh;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(74,92,42,0.07) 39px, rgba(74,92,42,0.07) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(74,92,42,0.07) 39px, rgba(74,92,42,0.07) 40px);
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--olive-dark);
+  border-bottom: 2px solid var(--olive);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 10px,
+    rgba(0,0,0,0.08) 10px, rgba(0,0,0,0.08) 20px
+  );
+}
+.header-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 20px 14px;
+  text-align: center;
+}
+.heli-svg {
+  filter: drop-shadow(0 0 12px rgba(176,184,122,0.5)) drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+}
+.header-text h1 {
+  font-family: var(--title);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: .18em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(176,184,122,0.3), 0 1px 3px rgba(0,0,0,0.8);
+}
+.header-text h1 span {
+  color: var(--amber-light);
+  letter-spacing: .2em;
+}
+
+/* ── COORD TABS ── */
+.coord-tabs { display:flex; gap:4px; margin-bottom:12px; }
+.coord-tab { padding:5px 14px; background:var(--bg2); border:1px solid var(--border2); border-radius:3px; font-family:var(--mono); font-size:11px; color:var(--text-dim); cursor:pointer; letter-spacing:.1em; }
+.coord-tab.active { background:var(--olive-dim); border-color:var(--olive-light); color:var(--amber-light); }
+.dms-row { display:grid; grid-template-columns:1fr auto 1fr auto 1fr auto auto; gap:4px; align-items:center; }
+.dms-lbl { font-family:var(--mono); font-size:14px; color:var(--khaki-light); text-align:center; padding:0 2px; }
+.status-loading { font-family:var(--mono); font-size:11px; color:var(--amber); letter-spacing:.1em; padding:8px 0; animation:blink 1s step-start infinite; }
+.status-ok  { font-family:var(--mono); font-size:11px; color:#81c784; letter-spacing:.08em; padding:8px 0; }
+.status-err { font-family:var(--mono); font-size:11px; color:#ef9a9a; letter-spacing:.08em; padding:8px 0; }
+@keyframes blink { 50%{opacity:.3} }
+
+/* ── NAV TABS ── */
+.nav {
+  display: flex;
+  background: var(--steel-dark);
+  border-bottom: 2px solid var(--olive);
+}
+.nav-btn:last-child { border-right: none; }
+.nav-btn.active {
+  background: var(--olive-dark);
+  color: var(--amber-light);
+  border-bottom: 2px solid var(--amber);
+  margin-bottom: -2px;
+}
+.nav-btn:hover:not(.active) { background: var(--surface); color: var(--text); }
+.nav-num {
+  background: var(--steel);
+  color: var(--text-bright);
+  font-size: 10px;
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-btn.active .nav-num { background: var(--amber); color: var(--olive-dark); }
+
+/* ── SECTIONS ── */
+.section { display: none; padding: 16px; -webkit-overflow-scrolling: touch; }
+.section.active { display: block; }
+
+/* ── PANEL ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.panel-head {
+  background: var(--olive-dim);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border2);
+}
+.panel-head span {
+  font-family: var(--title);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  color: var(--khaki-light);
+  text-transform: uppercase;
+}
+.panel-head .ph-icon { color: var(--olive-light); font-size: 14px; }
+.panel-body { padding: 14px; }
+
+/* ── FORM ── */
+.field { margin-bottom: 11px; }
+.field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--khaki);
+  letter-spacing: .12em;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.field input, .field select {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-bright);
+  outline: none;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a9060'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+.field input:focus, .field select:focus { border-color: var(--olive-light); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+.field select optgroup { color: var(--khaki); font-size: 11px; font-style: normal; background: var(--olive-dark); }
+.field select option { color: var(--text-bright); background: var(--bg2); }
+.leaf-badge {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+.lb-item { font-family: var(--mono); font-size: 11px; }
+.lb-item .lk { color: var(--text-dim); }
+.lb-item .lv { color: var(--amber-light); font-weight: 500; }
+.tag-auto { background: rgba(74,92,42,.5); color: var(--khaki-light); border: 1px solid var(--olive); border-radius: 3px; padding: 1px 8px; font-family: var(--mono); font-size: 10px; letter-spacing:.08em; }
+.tag-noauto { background: rgba(90,96,104,.4); color: var(--steel-pale); border: 1px solid var(--steel); border-radius: 3px; padding: 1px 8px; font-family: var(--mono); font-size: 10px; letter-spacing:.08em; }
+
+/* ── TOTAL BOX ── */
+.total-box {
+  background: var(--olive-dark);
+  border: 1px solid var(--olive);
+  border-radius: 3px;
+  padding: 8px 12px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.total-box .tl { font-family: var(--mono); font-size: 10px; color: var(--khaki); letter-spacing:.1em; }
+.total-box .tv { font-family: var(--title); font-size: 26px; color: var(--amber-light); font-weight: 700; }
+
+/* ── WIND TABLE ── */
+.wind-hdr, .wind-row {
+  display: grid;
+  grid-template-columns: 52px 68px 1fr 1fr;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.wind-hdr span {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.wind-alt {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--khaki-light);
+  text-align: center;
+}
+.wind-dtf {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--amber);
+  text-align: center;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 4px 2px;
+}
+.wind-row input {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 2px;
+  padding: 5px 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-bright);
+  text-align: center;
+  width: 100%;
+  outline: none;
+}
+.wind-row input:focus { border-color: var(--olive-light); }
+
+/* ── BUTTON ── */
+.btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--olive);
+  border: 1px solid var(--olive-light);
+  border-radius: 3px;
+  font-family: var(--title);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--text-bright);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all .15s;
+  margin-top: 4px;
+  -webkit-tap-highlight-color: rgba(176,184,122,0.3);
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  user-select: none;
+}
+.nav-btn {
+  flex: 1;
+  padding: 11px 4px;
+  background: none;
+  border: none;
+  font-family: var(--title);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--steel-light);
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  -webkit-tap-highlight-color: rgba(176,184,122,0.3);
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  user-select: none;
+}
+.btn:hover { background: var(--olive-light); color: var(--olive-dark); }
+.btn:active { transform: scale(.98); }
+.btn-secondary {
+  background: var(--steel-dark);
+  border-color: var(--steel);
+  color: var(--steel-pale);
+}
+.btn-secondary:hover { background: var(--steel); color: var(--text-bright); }
+
+/* ── RESULT METRICS ── */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.metric {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 10px 12px;
+}
+.metric .ml { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing:.1em; text-transform: uppercase; margin-bottom: 3px; }
+.metric .mv { font-family: var(--title); font-size: 20px; color: var(--amber-light); font-weight: 600; }
+.metric .mu { font-family: var(--mono); font-size: 9px; color: var(--khaki); }
+
+/* ── ALERTS ── */
+.alert {
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 500;
+}
+.alert-icon { font-family: var(--title); font-size: 18px; font-weight: 700; flex-shrink: 0; }
+.alert-ok    { background: rgba(46,125,50,.2);  border: 1px solid #2e7d32; color: #81c784; }
+.alert-warn  { background: rgba(184,134,11,.2); border: 1px solid #b8860b; color: #fdd835; }
+.alert-err   { background: rgba(192,57,43,.2);  border: 1px solid #c0392b; color: #ef9a9a; }
+
+/* ── INFO ROWS ── */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .ik { color: var(--text-dim); font-family: var(--mono); font-size: 11px; letter-spacing:.05em; }
+.info-row .iv { color: var(--text-bright); font-family: var(--mono); font-size: 12px; }
+
+/* ── CANVAS ── */
+#ellipseCanvas {
+  width: 100%;
+  border-radius: 3px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  display: block;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+
+/* ── SCROLL ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--olive); border-radius: 2px; }
+
+/* ── SCAN LINE effect ── */
+.header::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: scan 3s linear infinite;
+}
+@keyframes scan { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+
+/* ── FOOTER ── */
+.footer {
+  padding: 10px 16px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: .12em;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-text">
+      <h1>LEAFLET <span>DROP</span> CALC</h1>
+    </div>
+    <!-- Realistic Military Helicopter (side profile, UH-60 proportions) -->
+    <svg class="heli-svg" width="220" height="100" viewBox="0 0 220 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- shadow -->
+      <ellipse cx="90" cy="97" rx="58" ry="3" fill="#2e3a18" opacity=".35"/>
+
+      <!-- MAIN ROTOR BLADES — long and thin -->
+      <path d="M10 22 Q90 18 170 22" stroke="#8a9060" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M10 24 Q90 20 170 24" stroke="#6b7c40" stroke-width="1" fill="none" stroke-linecap="round" opacity=".5"/>
+      <!-- rotor mast -->
+      <rect x="87" y="22" width="5" height="9" rx="1" fill="#8a9060"/>
+      <!-- rotor hub -->
+      <circle cx="89" cy="22" r="4" fill="#b0b87a" stroke="#3a4a20" stroke-width="1"/>
+      <circle cx="89" cy="22" r="1.8" fill="#2e3a18"/>
+
+      <!-- FUSELAGE — slim, elongated UH-60 shape -->
+      <path d="M30 38 Q36 28 52 27 L110 27 Q124 27 130 32 L132 48 Q128 56 116 57 L52 57 Q38 55 28 48 Z"
+            fill="#3a4a20" stroke="#5a6e30" stroke-width="1"/>
+      <!-- fuselage top highlight -->
+      <path d="M52 27 L108 27 Q122 27 129 32" stroke="#7a8e50" stroke-width=".8" fill="none" opacity=".5"/>
+      <!-- fuselage belly -->
+      <path d="M36 52 Q52 58 116 57 Q128 56 132 48" stroke="#2a3418" stroke-width=".8" fill="none" opacity=".6"/>
+
+      <!-- NOSE — pointed, angled -->
+      <path d="M30 38 Q22 42 20 46 Q22 52 28 55 Q34 57 44 57 L44 40 Z"
+            fill="#2e3a18" stroke="#5a6e30" stroke-width=".9"/>
+      <!-- cockpit glass — angled forward -->
+      <path d="M31 39 Q24 43 22 47 Q24 52 30 54 L38 54 L40 39 Z"
+            fill="#0e1a0a" stroke="#4a7040" stroke-width=".7" opacity=".95"/>
+      <!-- glass reflection -->
+      <path d="M25 42 Q23 46 24 50" stroke="#6a9050" stroke-width=".9" fill="none" opacity=".55"/>
+      <path d="M29 39 L32 53" stroke="#4a7040" stroke-width=".5" fill="none" opacity=".35"/>
+
+      <!-- CABIN WINDOWS — rectangular, evenly spaced -->
+      <rect x="50" y="31" width="14" height="10" rx="1.5" fill="#0e1a0a" stroke="#4a7040" stroke-width=".8"/>
+      <rect x="68" y="31" width="14" height="10" rx="1.5" fill="#0e1a0a" stroke="#4a7040" stroke-width=".8"/>
+      <rect x="86" y="31" width="14" height="10" rx="1.5" fill="#0e1a0a" stroke="#4a7040" stroke-width=".8"/>
+      <!-- window sheen -->
+      <line x1="52" y1="33" x2="52" y2="39" stroke="#3a6030" stroke-width=".6" opacity=".6"/>
+      <line x1="70" y1="33" x2="70" y2="39" stroke="#3a6030" stroke-width=".6" opacity=".6"/>
+      <line x1="88" y1="33" x2="88" y2="39" stroke="#3a6030" stroke-width=".6" opacity=".6"/>
+
+      <!-- DOOR sliding panel line -->
+      <line x1="106" y1="28" x2="106" y2="57" stroke="#4a5c2a" stroke-width=".7" opacity=".5"/>
+      <!-- panel rivet dots -->
+      <circle cx="44" cy="42" r=".8" fill="#6b7c40" opacity=".5"/>
+      <circle cx="44" cy="50" r=".8" fill="#6b7c40" opacity=".5"/>
+      <circle cx="126" cy="36" r=".8" fill="#6b7c40" opacity=".5"/>
+      <circle cx="126" cy="52" r=".8" fill="#6b7c40" opacity=".5"/>
+
+      <!-- TAIL BOOM — long, thin, tapering -->
+      <path d="M116 42 L200 30 L202 36 L118 52 Z" fill="#2a3418" stroke="#4a5c2a" stroke-width=".8"/>
+      <!-- boom panel line -->
+      <path d="M122 44 L198 32" stroke="#3a4a20" stroke-width=".5" fill="none" opacity=".5"/>
+
+      <!-- TAIL VERTICAL FIN -->
+      <path d="M196 30 L204 14 L208 14 L204 30 Z" fill="#3a4a20" stroke="#5a6e30" stroke-width=".8"/>
+      <!-- horizontal stabilizer -->
+      <path d="M196 32 L210 36 L210 39 L196 36 Z" fill="#2e3a18" stroke="#4a5c2a" stroke-width=".7"/>
+
+      <!-- TAIL ROTOR — small, side-mounted -->
+      <line x1="205" y1="16" x2="205" y2="30" stroke="#8a9060" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="199" y1="23" x2="211" y2="23" stroke="#6b7c40" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="205" cy="23" r="2.5" fill="#b0b87a" stroke="#2e3a18" stroke-width=".8"/>
+
+      <!-- ENGINE COWLING -->
+      <path d="M108 27 L118 27 L120 35 L108 35 Z" fill="#4a5c2a" stroke="#6b7c40" stroke-width=".7"/>
+      <!-- exhaust -->
+      <rect x="116" y="27" width="6" height="4" rx=".8" fill="#1a2010" stroke="#3a4a20" stroke-width=".6"/>
+
+      <!-- SKID landing gear — front and rear struts -->
+      <line x1="56" y1="57" x2="52" y2="72" stroke="#7a8e50" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="72" y1="57" x2="70" y2="72" stroke="#7a8e50" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="100" y1="57" x2="102" y2="72" stroke="#7a8e50" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="116" y1="54" x2="118" y2="72" stroke="#7a8e50" stroke-width="1.8" stroke-linecap="round"/>
+      <!-- skid tubes -->
+      <path d="M46 72 Q80 69 122 72" stroke="#b0b87a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <path d="M48 75 Q80 72 120 75" stroke="#6b7c40" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+      <!-- LEAFLETS — drifting down, varied sizes and angles -->
+      <rect x="38" y="78" width="13" height="8"  rx="1" fill="#d8cc70" opacity=".92" transform="rotate(-16 44 82)"/>
+      <rect x="56" y="82" width="12" height="7.5" rx="1" fill="#b0b87a" opacity=".82" transform="rotate(11 62 85)"/>
+      <rect x="72" y="79" width="11" height="7"  rx="1" fill="#d8cc70" opacity=".72" transform="rotate(-6 77 82)"/>
+      <rect x="88" y="84" width="10" height="6.5" rx=".8" fill="#8a9060" opacity=".65" transform="rotate(14 93 87)"/>
+      <rect x="44" y="89" width="9"  height="5.5" rx=".8" fill="#b0b87a" opacity=".55" transform="rotate(20 48 92)"/>
+      <rect x="66" y="91" width="8"  height="5"  rx=".8" fill="#6b7c40" opacity=".48" transform="rotate(-9 70 93)"/>
+      <rect x="82" y="93" width="7"  height="4.5" rx=".7" fill="#8a9060" opacity=".38" transform="rotate(7 85 95)"/>
+    </svg>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <button type="button" class="nav-btn active" id="tab-input" onclick="showTab('input')">
+    <span class="nav-num">1</span> DADOS
+  </button>
+  <button type="button" class="nav-btn" id="tab-wind" onclick="showTab('wind')">
+    <span class="nav-num">2</span> VENTO
+  </button>
+  <button type="button" class="nav-btn" id="tab-result" onclick="showTab('result')">
+    <span class="nav-num">3</span> RESULTADO
+  </button>
+</div>
+
+<!-- ══ SECTION 1: DADOS ══ -->
+<div class="section active" id="sec-input" style="display:block">
+
+  <div class="panel">
+    <div class="panel-head"><span class="ph-icon">▣</span><span>Dados da Missão</span></div>
+    <div class="panel-body">
+      <div class="grid2">
+        <div class="field"><label>Nº Missão</label><input id="missionNum" placeholder="ex: MSN-001"/></div>
+        <div class="field"><label>Nº Produto</label><input id="productNum" placeholder="ex: PRD-A1"/></div>
+        <div class="field"><label>Altitude de lançamento (ft MSL)</label><input id="releaseAlt" type="number" value="2000" min="0" oninput="buildWindRows()"/></div>
+        <div class="field"><label>Altitude do alvo (ft MSL)</label><input id="targetAlt" type="number" value="0" min="0" oninput="buildWindRows()"/></div>
+      </div>
+      <div class="field">
+        <label>Tipo de plataforma</label>
+        <select id="platform" onchange="onPlatformChange()">
+          <option value="helo">Helicóptero (CH-47 / UH-60 / outros)</option>
+          <option value="c130">Aeronave asa fixa — C-130 (~190 kt)</option>
+          <option value="fixed">Aeronave asa fixa — outra velocidade</option>
+        </select>
+      </div>
+      <div id="platform-speed-row" style="display:none">
+        <div class="field"><label>Velocidade da aeronave (kt)</label><input id="acSpeed" type="number" value="190" min="50" max="400"/></div>
+      </div>
+      <div id="platform-method-row">
+        <div class="field">
+          <label>Método de disseminação</label>
+          <select id="dissemMethod" onchange="onPlatformChange()">
+            <option value="bag">Bolsa / trash bag (instantâneo ~1s)</option>
+            <option value="hand">Lançamento manual à mão (~2s)</option>
+            <option value="box_imp">Caixa improvisada (~5s)</option>
+            <option value="box_static">Caixa static-line (~10s)</option>
+            <option value="custom">Tempo personalizado</option>
+          </select>
+        </div>
+      </div>
+      <div id="platform-time-row" style="display:none">
+        <div class="field"><label>Tempo de lançamento (segundos)</label><input id="deployTime" type="number" value="5" min="1" max="60"/></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span class="ph-icon">◈</span><span>Panfleto — Tabelas H-1 / H-2</span></div>
+    <div class="panel-body">
+      <div class="grid2">
+        <div class="field">
+          <label>Tamanho do panfleto — tabela FM 3-05.302 (polegadas)</label>
+          <select id="leafSize" onchange="onLeafChange()">
+            <option value="8.5x8.5">8.5 × 8.5 in (216 × 216 mm) — aprox. A4</option>
+            <option value="8.5x4.25">8.5 × 4.25 in (216 × 108 mm) — aprox. A5</option>
+            <option value="8.5x3.09">8.5 × 3.09 in (216 × 78 mm)</option>
+            <option value="7.5x3">7.5 × 3 in (190 × 76 mm)</option>
+            <option value="6x4" selected>6 × 4 in (152 × 102 mm) — aprox. A6</option>
+            <option value="6x3">6 × 3 in (152 × 76 mm)</option>
+            <option value="6x2">6 × 2 in (152 × 51 mm)</option>
+            <option value="6x1.5">6 × 1.5 in (152 × 38 mm)</option>
+            <option value="4x4">4 × 4 in (102 × 102 mm)</option>
+            <option value="4x3.2">4 × 3.2 in (102 × 81 mm) — aprox. A7</option>
+            <option value="4x2.67">4 × 2.67 in (102 × 68 mm)</option>
+            <option value="4x2">4 × 2 in (102 × 51 mm) — aprox. A8</option>
+            <option value="4x1.6">4 × 1.6 in (102 × 41 mm)</option>
+            <option value="4x1.23">4 × 1.23 in (102 × 31 mm)</option>
+            <option value="4x1">4 × 1 in (102 × 25 mm)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Gramatura do papel (g/m²)</label>
+          <select id="paperWeight" onchange="onLeafChange()">
+            <option value="9">33 g/m² (9 lb)</option>
+            <option value="13">49 g/m² (13 lb)</option>
+            <option value="16">60 g/m² (16 lb)</option>
+            <option value="20" selected>75 g/m² (20 lb)</option>
+            <option value="60">224 g/m² (60 lb)</option>
+          </select>
+        </div>
+      </div>
+      <div id="leafInfo"></div>
+      <div class="grid2" style="align-items:end">
+        <div class="field" style="margin-bottom:0"><label>Quantidade a lançar (lb)</label><input id="poundsQty" type="number" value="40" min="1" step="1" oninput="updateTotal()"/></div>
+        <div class="total-box"><div class="tl">TOTAL DE PANFLETOS</div><div class="tv" id="totalLeafletsVal">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <button type="button" class="btn" id="btn-to-wind" onclick="showTab('wind')">PRÓXIMO: DADOS DE VENTO &#9658;</button>
+</div>
+
+<!-- ══ SECTION 2: VENTO ══ -->
+<div class="section" id="sec-wind">
+
+  <div class="panel">
+    <div class="panel-head"><span class="ph-icon">&#9678;</span><span>Coordenada do Alvo — Busca Automática de Vento</span></div>
+    <div class="panel-body">
+      <div class="coord-tabs">
+        <button type="button" class="coord-tab active" id="ctab-dec" onclick="switchCoordTab('dec')">DECIMAL</button>
+        <button type="button" class="coord-tab" id="ctab-dms" onclick="switchCoordTab('dms')">GMS</button>
+      </div>
+
+      <div id="coord-dec">
+        <div class="grid2">
+          <div class="field"><label>Latitude (ex: -15.7801)</label><input id="lat-dec" type="number" step="0.0001" placeholder="-15.7801"/></div>
+          <div class="field"><label>Longitude (ex: -47.9292)</label><input id="lon-dec" type="number" step="0.0001" placeholder="-47.9292"/></div>
+        </div>
+      </div>
+
+      <div id="coord-dms" style="display:none">
+        <div style="margin-bottom:8px">
+          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Latitude</label>
+          <div class="dms-row">
+            <div class="field" style="margin:0"><input id="lat-d" type="number" placeholder="15" min="0" max="90"/><span class="dms-lbl">°</span></div>
+            <div class="field" style="margin:0"><input id="lat-m" type="number" placeholder="46" min="0" max="59"/><span class="dms-lbl">'</span></div>
+            <div class="field" style="margin:0"><input id="lat-s" type="number" placeholder="48" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
+            <select id="lat-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
+              <option value="S">S</option><option value="N">N</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Longitude</label>
+          <div class="dms-row">
+            <div class="field" style="margin:0"><input id="lon-d" type="number" placeholder="47" min="0" max="180"/><span class="dms-lbl">°</span></div>
+            <div class="field" style="margin:0"><input id="lon-m" type="number" placeholder="55" min="0" max="59"/><span class="dms-lbl">'</span></div>
+            <div class="field" style="margin:0"><input id="lon-s" type="number" placeholder="45" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
+            <select id="lon-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
+              <option value="W">W</option><option value="E">E</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="btn" id="btn-fetch-wind" style="margin-top:10px" onclick="fetchWind()">&#9762; BUSCAR VENTO AUTOMATICAMENTE</button>
+      <div id="wind-fetch-status"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span class="ph-icon">&#10148;</span><span>Vento por Altitude — Tabelas H-3 / H-4</span></div>
+    <div class="panel-body">
+      <div class="wind-hdr">
+        <span>ALT</span><span>FATOR</span><span>VEL (kt)</span><span>AZ (°grid)</span>
+      </div>
+      <div id="windRows"></div>
+    </div>
+  </div>
+  <button type="button" class="btn" id="btn-calc" onclick="calculate()">&#9658; CALCULAR MISSÃO</button>
+  <button type="button" class="btn btn-secondary" style="margin-top:6px" id="btn-to-input" onclick="showTab('input')">&#9664; VOLTAR</button>
+</div>
+
+<!-- ══ SECTION 3: RESULTADO ══ -->
+<div class="section" id="sec-result">
+  <div id="resultContent">
+    <div class="panel">
+      <div class="panel-body" style="text-align:center;padding:2rem;color:var(--text-dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em">
+        AGUARDANDO DADOS — EXECUTE O CÁLCULO NA ABA VENTO
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">// FM 3-05.302 APPENDIX H · PSYOP LEAFLET OPERATIONS · TRAINING USE ONLY //</div>
+
+<script>
+// ── WIND CACHE — declared first so buildWindRows can call applyWindCache ──
+var cachedWindByAlt = null;
+function applyWindCache(){
+  if(!cachedWindByAlt) return;
+  var rows = document.querySelectorAll('#windRows .wind-row');
+  rows.forEach(function(row){
+    var idx = parseInt(row.dataset.idx);
+    var rowAltFt = ALT_LEVELS[idx] * 1000;
+    var altKeys = Object.keys(cachedWindByAlt).map(Number);
+    var closest = altKeys.reduce(function(a,b){
+      return Math.abs(b-rowAltFt)<Math.abs(a-rowAltFt)?b:a;
+    });
+    var w = cachedWindByAlt[closest];
+    if(w){
+      row.querySelector('.ws').value = Math.round(w.speed);
+      row.querySelector('.az').value = Math.round(w.dir);
+    }
+  });
+}
+
+const LEAFLET_TABLE = {
+  "8.5x8.5":{"9":{rod:2.9,sf:0.24,auto:false},"13":{rod:2.5,sf:0.31,auto:false},"16":{rod:2.7,sf:0.26,auto:false},"20":{rod:2.8,sf:0.35,auto:false}},
+  "8.5x4.25":{"9":{rod:2.7,sf:0.20,auto:false},"13":{rod:3.4,sf:0.25,auto:false},"16":{rod:3.8,sf:0.68,auto:false},"20":{rod:5.2,sf:0.71,auto:false}},
+  "8.5x3.09":{"9":{rod:3.0,sf:0.15,auto:false},"13":{rod:3.2,sf:0.15,auto:false},"16":{rod:3.6,sf:0.65,auto:false},"20":{rod:1.9,sf:0.42,auto:false}},
+  "7.5x3":{"9":{rod:1.8,sf:0.51,auto:true}},
+  "6x4":{"9":{rod:2.3,sf:0.26,auto:false},"13":{rod:2.7,sf:0.37,auto:false},"16":{rod:3.3,sf:0.63,auto:false},"20":{rod:4.0,sf:0.46,auto:false}},
+  "6x3":{"9":{rod:3.1,sf:0.48,auto:false},"13":{rod:3.6,sf:0.89,auto:false},"16":{rod:4.7,sf:1.04,auto:false},"20":{rod:2.5,sf:1.11,auto:true},"60":{rod:1.8,sf:0.54,auto:true}},
+  "6x2":{"9":{rod:2.3,sf:0.67,auto:false},"13":{rod:1.3,sf:0.59,auto:false},"16":{rod:1.6,sf:0.36,auto:false},"20":{rod:1.7,sf:0.22,auto:false}},
+  "6x1.5":{"9":{rod:1.8,sf:0.30,auto:false},"13":{rod:1.5,sf:0.09,auto:false},"16":{rod:2.1,sf:0.17,auto:false},"20":{rod:2.1,sf:0.22,auto:false}},
+  "4x4":{"9":{rod:2.0,sf:0.31,auto:false},"13":{rod:2.2,sf:0.12,auto:false},"16":{rod:2.4,sf:0.20,auto:false},"20":{rod:2.6,sf:0.19,auto:false}},
+  "4x3.2":{"9":{rod:2.2,sf:0.18,auto:false},"13":{rod:2.4,sf:0.12,auto:false},"16":{rod:2.6,sf:0.11,auto:false},"20":{rod:3.0,sf:0.16,auto:false}},
+  "4x2.67":{"9":{rod:2.2,sf:0.30,auto:false},"13":{rod:2.6,sf:0.13,auto:false},"16":{rod:2.8,sf:0.20,auto:false},"20":{rod:3.1,sf:0.16,auto:false}},
+  "4x2":{"9":{rod:2.1,sf:0.13,auto:false},"13":{rod:1.8,sf:0.27,auto:false},"16":{rod:1.5,sf:0.05,auto:false},"20":{rod:1.7,sf:0.05,auto:false}},
+  "4x1.6":{"9":{rod:1.3,sf:0.56,auto:true},"13":{rod:1.3,sf:0.16,auto:true},"16":{rod:1.4,sf:0.23,auto:true},"20":{rod:1.7,sf:0.05,auto:true}},
+  "4x1.23":{"9":{rod:1.3,sf:0.24,auto:false},"13":{rod:1.5,sf:0.34,auto:false},"16":{rod:1.6,sf:0.28,auto:false},"20":{rod:1.6,sf:0.65,auto:false}},
+  "4x1":{"9":{rod:1.3,sf:0.18,auto:false},"13":{rod:1.6,sf:0.50,auto:false},"16":{rod:1.9,sf:0.63,auto:false},"20":{rod:2.1,sf:0.54,auto:false}}
+};
+const LPP = {
+  "8.5x8.5":{"9":288,"13":199,"16":162,"20":129},
+  "8.5x4.25":{"9":575,"13":398,"16":324,"20":259},
+  "8.5x3.09":{"9":791,"13":548,"16":445,"20":356},
+  "7.5x3":{"9":416},
+  "6x4":{"9":866,"13":599,"16":487,"20":390},
+  "6x3":{"9":1154,"13":799,"16":649,"20":519,"60":440},
+  "6x2":{"9":1731,"13":1199,"16":974,"20":779},
+  "6x1.5":{"9":2309,"13":1598,"16":1299,"20":1039},
+  "4x4":{"9":1299,"13":899,"16":730,"20":584},
+  "4x3.2":{"9":1623,"13":1124,"16":913,"20":730},
+  "4x2.67":{"9":1948,"13":1349,"16":1096,"20":877},
+  "4x2":{"9":2597,"13":1798,"16":1461,"20":1169},
+  "4x1.6":{"9":3247,"13":2248,"16":1826,"20":1461},
+  "4x1.23":{"9":4220,"13":2922,"16":2374,"20":1899},
+  "4x1":{"9":5194,"13":3596,"16":2922,"20":2338}
+};
+const AUTO_DTF = {
+  1.3:[.11,.21,.21,.21,.21,.20,.20,.20,.20,.19,.28,.37,.35,.34,.33,.39,.37,.48],
+  1.4:[.10,.20,.20,.19,.19,.19,.19,.18,.18,.18,.26,.34,.33,.32,.30,.36,.34,null],
+  1.5:[.09,.18,.18,.18,.18,.18,.17,.17,.17,.17,.24,.32,.31,.29,.28,.34,.32,.42],
+  1.6:[.09,.17,.17,.17,.17,.17,.16,.16,.16,.16,.23,.30,.29,.28,.27,.32,.30,.40],
+  1.7:[.08,.16,.16,.16,.16,.16,.15,.15,.15,.15,.21,.28,.27,.26,.25,.30,.28,.37],
+  1.8:[.08,.15,.15,.15,.15,.15,.14,.14,.14,.14,.20,.26,.25,.25,.24,.28,.27,.35],
+  1.9:[.07,.15,.14,.14,.14,.14,.14,.14,.13,.13,.19,.25,.24,.23,.22,.27,.25,.33],
+  2.1:[.07,.13,.13,.13,.13,.12,.12,.12,.12,.12,.17,.23,.22,.21,.20,.24,.23,.30],
+  2.3:[.06,.12,.12,.12,.12,.12,.11,.11,.11,.11,.16,.21,.20,.19,.18,.22,.21,.27],
+  2.5:[.06,.11,.11,.11,.11,.11,.10,.10,.10,.10,.10,.15,.19,.18,.18,.17,.20,.19]
+};
+const NONAUTO_DTF = {
+  3.0:[.03,.09,.09,.09,.09,.09,.09,.09,.09,.09,.13,.16,.16,.15,.15,.17,.16,.21],
+  3.1:[.03,.09,.09,.09,.09,.09,.09,.09,.08,.08,.12,.16,.15,.15,.14,.17,.16,.20],
+  3.2:[.03,.09,.09,.09,.09,.08,.08,.08,.08,.08,.12,.15,.15,.14,.14,.16,.15,.20],
+  3.3:[.03,.08,.08,.08,.08,.08,.08,.08,.08,.08,.12,.15,.14,.14,.13,.16,.15,.19],
+  3.4:[.03,.08,.08,.08,.08,.08,.08,.08,.08,.08,.11,.15,.14,.13,.13,.15,.14,.18],
+  3.6:[.03,.08,.08,.08,.08,.07,.07,.07,.07,.07,.11,.14,.13,.13,.12,.14,.14,.17],
+  3.8:[.03,.07,.07,.07,.07,.07,.07,.07,.07,.07,.10,.13,.13,.12,.12,.14,.13,.16],
+  4.0:[.02,.07,.07,.07,.07,.07,.07,.07,.07,.06,.10,.12,.12,.11,.11,.13,.12,.16],
+  4.7:[.02,.06,.06,.06,.06,.06,.06,.06,.05,.08,.11,.10,.10,.09,.11,.10,.13,.17]
+};
+const ALT_LEVELS = [0,1,2,3,4,5,6,7,8,9,10,12,14,16,18,20,23,25];
+const ALT_LABELS = ['SUP','1k','2k','3k','4k','5k','6k','7k','8k','9k','10k','12k','14k','16k','18k','20k','23k','25k'];
+
+function getDTF(rod, auto) {
+  const tbl = auto ? AUTO_DTF : NONAUTO_DTF;
+  const keys = Object.keys(tbl).map(Number);
+  return tbl[keys.reduce((a,b)=>Math.abs(b-rod)<Math.abs(a-rod)?b:a)];
+}
+function getLeafData() {
+  const sz = document.getElementById('leafSize').value;
+  const wt = document.getElementById('paperWeight').value;
+  return (LEAFLET_TABLE[sz]||{})[wt]||null;
+}
+function onLeafChange() {
+  const d = getLeafData();
+  const sz = document.getElementById('leafSize').value;
+  const wt = document.getElementById('paperWeight').value;
+  const lpp = (LPP[sz]||{})[wt];
+  const el = document.getElementById('leafInfo');
+  if (!d) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-family:var(--mono);font-size:11px;margin-bottom:8px">COMBINAÇÃO NÃO DISPONÍVEL NAS TABELAS</div>';
+    document.getElementById('totalLeafletsVal').textContent='—';
+    return;
+  }
+  const tag = d.auto
+    ? '<span class="tag-auto">AUTORROTAÇÃO</span>'
+    : '<span class="tag-noauto">SEM AUTORROTAÇÃO</span>';
+  el.innerHTML = `<div class="leaf-badge">${tag}
+    <span class="lb-item"><span class="lk">TAXA DESC: </span><span class="lv">${d.rod}</span></span>
+    <span class="lb-item"><span class="lk">SPREAD: </span><span class="lv">${d.sf}</span></span>
+    ${lpp?`<span class="lb-item"><span class="lk">PAN/LB: </span><span class="lv">${lpp.toLocaleString('pt-BR')}</span></span>`:''}
+  </div>`;
+  updateTotal();
+  buildWindRows();
+}
+function updateTotal() {
+  const sz = document.getElementById('leafSize').value;
+  const wt = document.getElementById('paperWeight').value;
+  const lpp = (LPP[sz]||{})[wt];
+  const lbs = parseFloat(document.getElementById('poundsQty').value)||0;
+  document.getElementById('totalLeafletsVal').textContent = (lpp&&lbs) ? Math.round(lpp*lbs).toLocaleString('pt-BR') : '—';
+}
+function buildWindRows() {
+  const relAlt = parseFloat(document.getElementById('releaseAlt').value)||2000;
+  const tgtAlt = parseFloat(document.getElementById('targetAlt').value)||0;
+  const d = getLeafData();
+  if (!d) return;
+  const dtfArr = getDTF(d.rod, d.auto);
+
+  // top: first level >= release altitude
+  const topIdx = ALT_LEVELS.findIndex(a=>a*1000>=relAlt);
+  const limit = topIdx===-1 ? ALT_LEVELS.length : topIdx+1;
+
+  // bottom: first level >= target altitude (don't show layers below target)
+  const botIdx = ALT_LEVELS.findIndex(a=>a*1000>=tgtAlt);
+  const start = botIdx===-1 ? 0 : botIdx;
+
+  const container = document.getElementById('windRows');
+  const prev = {};
+  container.querySelectorAll('.wind-row').forEach(r=>{
+    const i = r.dataset.idx;
+    const wsVal = r.querySelector('.ws')?.value;
+    const azVal = r.querySelector('.az')?.value;
+    if(wsVal !== '' && wsVal !== null) prev['ws_'+i] = wsVal;
+    if(azVal !== '' && azVal !== null) prev['az_'+i] = azVal;
+  });
+  container.innerHTML='';
+  for(let i=limit-1;i>=start;i--){
+    const dtf = (dtfArr[i]!==null&&dtfArr[i]!==undefined)?dtfArr[i].toFixed(2):'—';
+    const row = document.createElement('div');
+    row.className='wind-row'; row.dataset.idx=i;
+    const wsVal = prev['ws_'+i] !== undefined ? prev['ws_'+i] : '';
+    const azVal = prev['az_'+i] !== undefined ? prev['az_'+i] : '';
+    row.innerHTML=`<span class="wind-alt">${ALT_LABELS[i]}</span>
+      <span class="wind-dtf">${dtf}</span>
+      <input class="ws" type="number" placeholder="kt" min="0" value="${wsVal}"/>
+      <input class="az" type="number" placeholder="°" min="0" max="360" value="${azVal}"/>`;
+    container.appendChild(row);
+  }
+  // re-apply any previously fetched wind data
+  applyWindCache();
+}
+function toRad(d){return d*Math.PI/180}
+
+function toDeg(r){return r*180/Math.PI}
+
+// Convert NM offset (dx,dy in NM) from a lat/lon to new lat/lon
+function offsetCoords(lat, lon, dxNM, dyNM){
+  var dLat = dyNM / 60;
+  var dLon = dxNM / (60 * Math.cos(toRad(lat)));
+  return {lat: lat + dLat, lon: lon + dLon};
+}
+
+// Format decimal degrees to DMS string
+function decToDMS(val, isLat){
+  var hem = isLat ? (val>=0?'N':'S') : (val>=0?'E':'W');
+  var abs = Math.abs(val);
+  var d = Math.floor(abs);
+  var mf = (abs-d)*60;
+  var m = Math.floor(mf);
+  var s = ((mf-m)*60).toFixed(1);
+  return d+'°'+m+"'"+s+'"'+hem;
+}
+
+function calculate() {
+  const d = getLeafData();
+  if (!d) { alert('Selecione tamanho e peso válidos'); return; }
+  const relAlt = parseFloat(document.getElementById('releaseAlt').value)||2000;
+  const tgtAlt = parseFloat(document.getElementById('targetAlt').value)||0;
+  const fallAlt = relAlt - tgtAlt;
+  const sz = document.getElementById('leafSize').value;
+  const wt = document.getElementById('paperWeight').value;
+  const lpp = (LPP[sz]||{})[wt]||0;
+  const lbs = parseFloat(document.getElementById('poundsQty').value)||0;
+  const totalLeaflets = lpp * lbs;
+  const platform = document.getElementById('platform').value;
+  const acSpeed = platform==='c130' ? 190 : (platform==='fixed' ? parseFloat(document.getElementById('acSpeed').value)||190 : 0);
+
+  const rows = document.querySelectorAll('#windRows .wind-row');
+  const dtfArr = getDTF(d.rod, d.auto);
+  let drifts = [];
+  rows.forEach((r)=>{
+    const tableIdx = parseInt(r.dataset.idx); // real index into ALT_LEVELS/dtfArr
+    const ws = parseFloat(r.querySelector('.ws').value)||0;
+    const az = parseFloat(r.querySelector('.az').value)||0;
+    const dtf = (dtfArr[tableIdx]!==null && dtfArr[tableIdx]!==undefined) ? dtfArr[tableIdx] : 0;
+    drifts.push({dist:dtf*ws, az, alt:ALT_LABELS[tableIdx], dtf, tableIdx});
+  });
+  let x=0,y=0;
+  const path=[{x:0,y:0}];
+  for(const dr of drifts){
+    x+=dr.dist*Math.sin(toRad(dr.az));
+    y+=dr.dist*Math.cos(toRad(dr.az));
+    path.push({x,y});
+  }
+  const totalDrift = drifts.reduce((s,dd)=>s+dd.dist,0);
+  const netAz = Math.atan2(x,y);
+  // max deviation = max perpendicular distance from any path point to the net drift line
+  // net drift line goes from origin (0,0) in direction netAz
+  // perpendicular distance from point (px,py) to line through origin with direction (sin,cos):
+  // dev = |px*cos(netAz) - py*sin(netAz)|
+  let maxDev=0;
+  for(const p of path){
+    const dev = Math.abs(p.x*Math.cos(netAz) - p.y*Math.sin(netAz));
+    if(dev>maxDev) maxDev=dev;
+  }
+  const halfAlt = 0.5*fallAlt/6076.115;
+  const majorAxis = halfAlt + totalDrift*d.sf;
+  const minorAxis = halfAlt + maxDev*d.sf;
+  const area = 0.785*majorAxis*minorAxis;
+  const meanDensity = area>0 ? totalLeaflets/area : 0;
+  const density100 = meanDensity/343;
+
+  // ── RELEASE POINT CALCULATION ──
+  // The release point is the INVERSE of the net drift from target center
+  const releaseOffsetX = -x; // opposite of net drift X
+  const releaseOffsetY = -y; // opposite of net drift Y
+
+  // Fixed-wing adjustment: during box deployment (~10s at acSpeed kt), aircraft advances
+  // 1 kt = 1 NM/hr = 1/3600 NM/s; at 190kt for ~10s = ~0.528 NM
+  let fixedWingAdj = 0;
+  let fixedWingAdjNM = 0;
+  if(platform !== 'helo' && acSpeed > 0){
+    const deployTime = getDeployTime();
+    fixedWingAdjNM = (acSpeed / 3600) * deployTime;
+    fixedWingAdj = fixedWingAdjNM;
+  }
+
+  // Get target coords if available
+  const coords = getCoords();
+  let releaseCoords = null;
+  if(!isNaN(coords.lat) && !isNaN(coords.lon)){
+    releaseCoords = offsetCoords(coords.lat, coords.lon, releaseOffsetX, releaseOffsetY);
+    // For fixed wing: move release point further uptrack by fixedWingAdj NM
+    if(fixedWingAdj > 0){
+      // uptrack = opposite of net drift azimuth
+      const uptrackX = -Math.sin(netAz) * fixedWingAdj;
+      const uptrackY = -Math.cos(netAz) * fixedWingAdj;
+      releaseCoords = offsetCoords(releaseCoords.lat, releaseCoords.lon, uptrackX, uptrackY);
+    }
+  }
+
+  renderResults({totalDrift,maxDev,majorAxis,minorAxis,area,meanDensity,density100,totalLeaflets,d,relAlt,tgtAlt,fallAlt,path,drifts,sz,wt,lbs,platform,acSpeed,fixedWingAdjNM,releaseCoords,coords,netAz});
+  showTab('result');
+}
+
+function renderResults(r) {
+  const {totalDrift,maxDev,majorAxis,minorAxis,area,meanDensity,density100,totalLeaflets,d,relAlt,tgtAlt,fallAlt,path,drifts,sz,wt,lbs,platform,acSpeed,fixedWingAdjNM,releaseCoords,coords,netAz} = r;
+  let alertHtml='';
+  if(density100<10) alertHtml=`<div class="alert alert-err"><span class="alert-icon">!</span><span>DENSIDADE INSUFICIENTE: ${density100.toFixed(1)} pan/100m² — mínimo 10. Reduza altitude ou aumente panfletos.</span></div>`;
+  else if(density100>30) alertHtml=`<div class="alert alert-warn"><span class="alert-icon">!</span><span>DENSIDADE EXCESSIVA: ${density100.toFixed(1)} pan/100m² — máximo 30. Aumente altitude ou reduza panfletos.</span></div>`;
+  else alertHtml=`<div class="alert alert-ok"><span class="alert-icon">✓</span><span>DENSIDADE NOMINAL: ${density100.toFixed(1)} pan/100m² — dentro do parâmetro 10–30.</span></div>`;
+
+  // platform label
+  const platLabels = {helo:'Helicóptero', c130:'C-130 (asa fixa)', fixed:'Asa fixa (outra)'};
+  const platLabel = platLabels[platform]||platform;
+
+  // release point HTML
+  let relPtHtml = '';
+  if(releaseCoords){
+    const latDMS = decToDMS(releaseCoords.lat, true);
+    const lonDMS = decToDMS(releaseCoords.lon, false);
+    const methodNames = {bag:'Bolsa/trash bag', hand:'Manual à mão', box_imp:'Caixa improvisada', box_static:'Caixa static-line', custom:'Personalizado'};
+    const methodEl = document.getElementById('dissemMethod');
+    const methodName = methodEl ? (methodNames[methodEl.value]||'') : '';
+    const deployTime = getDeployTime();
+    const adjNote = fixedWingAdjNM > 0
+      ? `<div class="info-row"><span class="ik">Ajuste lançamento (${methodName} ~${deployTime}s @ ${acSpeed} kt)</span><span class="iv">+${fixedWingAdjNM.toFixed(3)} NM (${(fixedWingAdjNM*1852).toFixed(0)} m)</span></div>`
+      : '<div class="info-row"><span class="ik">Ajuste lançamento</span><span class="iv">Não aplicável (helicóptero)</span></div>';
+    relPtHtml = `
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">✦</span><span>Ponto de Lançamento</span></div>
+      <div class="panel-body">
+        <div class="info-row"><span class="ik">Coordenada alvo</span><span class="iv">${decToDMS(coords.lat,true)} ${decToDMS(coords.lon,false)}</span></div>
+        <div class="info-row"><span class="ik">Ponto lançamento (DMS)</span><span class="iv">${latDMS} ${lonDMS}</span></div>
+        <div class="info-row"><span class="ik">Ponto lançamento (Dec)</span><span class="iv">${releaseCoords.lat.toFixed(6)}, ${releaseCoords.lon.toFixed(6)}</span></div>
+        <div class="info-row"><span class="ik">Azimute de abordagem</span><span class="iv">${(((toDeg(netAz)+180)%360)).toFixed(1)}°</span></div>
+        ${adjNote}
+        <div style="margin-top:8px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:10px;color:var(--text-dim);line-height:1.6">
+          &#9432; A aeronave deve estar nessa coordenada na altitude de lançamento (${parseInt(relAlt).toLocaleString()} ft MSL) no momento de soltar os panfletos. Voar no azimute ${(toDeg(netAz)+180).toFixed(1)}° em direção ao alvo.
+        </div>
+      </div>
+    </div>`;
+  } else {
+    relPtHtml = `
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">✦</span><span>Ponto de Lançamento</span></div>
+      <div class="panel-body">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:4px 0">
+          Informe a coordenada do alvo na aba VENTO e clique em "Buscar Vento" para calcular as coordenadas exatas do ponto de lançamento.
+        </div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('resultContent').innerHTML=`
+    ${alertHtml}
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">◈</span><span>Resultados dos Cálculos</span></div>
+      <div class="panel-body">
+        <div class="metric-grid">
+          <div class="metric"><div class="ml">Deriva Total</div><div class="mv">${totalDrift.toFixed(3)}</div><div class="mu">NM</div></div>
+          <div class="metric"><div class="ml">Desvio Máximo</div><div class="mv">${maxDev.toFixed(3)}</div><div class="mu">NM</div></div>
+          <div class="metric"><div class="ml">Eixo Maior</div><div class="mv">${majorAxis.toFixed(3)}</div><div class="mu">NM</div></div>
+          <div class="metric"><div class="ml">Eixo Menor</div><div class="mv">${minorAxis.toFixed(3)}</div><div class="mu">NM</div></div>
+          <div class="metric"><div class="ml">Área do Padrão</div><div class="mv">${area.toFixed(3)}</div><div class="mu">NM²</div></div>
+          <div class="metric"><div class="ml">Total Panfletos</div><div class="mv">${Math.round(totalLeaflets).toLocaleString('pt-BR')}</div><div class="mu">unid</div></div>
+        </div>
+        <div class="info-row"><span class="ik">Densidade média/NM²</span><span class="iv">${Math.round(meanDensity).toLocaleString('pt-BR')}</span></div>
+        <div class="info-row"><span class="ik">Densidade/100m²</span><span class="iv">${density100.toFixed(2)}</span></div>
+      </div>
+    </div>
+    ${relPtHtml}
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">◉</span><span>Padrão Elíptico — 90% dos Panfletos</span></div>
+      <div class="panel-body" style="padding:10px">
+        <canvas id="ellipseCanvas" height="260"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">▣</span><span>Parâmetros da Missão</span></div>
+      <div class="panel-body">
+        <div class="info-row"><span class="ik">Missão / Produto</span><span class="iv">${document.getElementById('missionNum').value||'—'} / ${document.getElementById('productNum').value||'—'}</span></div>
+        <div class="info-row"><span class="ik">Plataforma</span><span class="iv">${platLabel}</span></div>
+        <div class="info-row"><span class="ik">Alt lançamento / Alvo</span><span class="iv">${parseInt(relAlt).toLocaleString()} ft / ${parseInt(tgtAlt).toLocaleString()} ft MSL</span></div>
+        <div class="info-row"><span class="ik">Altura real de queda</span><span class="iv">${parseInt(fallAlt).toLocaleString()} ft</span></div>
+        <div class="info-row"><span class="ik">Tamanho × Gramatura</span><span class="iv">${document.getElementById('leafSize').options[document.getElementById('leafSize').selectedIndex].text.split('—')[0].trim()} / ${wt=='9'?'33':wt=='13'?'49':wt=='16'?'60':wt=='20'?'75':'224'} g/m²</span></div>
+        <div class="info-row"><span class="ik">Autorrotação</span><span class="iv">${d.auto?'SIM':'NÃO'}</span></div>
+        <div class="info-row"><span class="ik">Taxa de descida / Spread</span><span class="iv">${d.rod} / ${d.sf}</span></div>
+        <div class="info-row"><span class="ik">Quantidade lançada</span><span class="iv">${lbs} lb</span></div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary" id="btn-nova-missao" style="margin-top:4px">&#9664; NOVA MISSÃO</button>
+  `;
+  var btnNova = document.getElementById('btn-nova-missao');
+  if(btnNova) btnNova.addEventListener('click', function(){ showTab('input'); });
+  setTimeout(()=>drawEllipse(majorAxis,minorAxis,path,drifts),60);
+}
+
+function drawEllipse(majorAxis, minorAxis, path) {
+  const canvas = document.getElementById('ellipseCanvas');
+  if (!canvas) return;
+  const W = canvas.offsetWidth||300;
+  canvas.width=W; canvas.height=260;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,260);
+
+  // bg grid
+  ctx.strokeStyle='rgba(74,92,42,0.15)';
+  ctx.lineWidth=0.5;
+  for(let i=0;i<W;i+=30){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,260);ctx.stroke();}
+  for(let j=0;j<260;j+=30){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(W,j);ctx.stroke();}
+
+  const cx=W/2, cy=210;
+  const scaleVal = Math.min((W-50)/(majorAxis*2+.01),(180)/(majorAxis*2+.01));
+
+  let sx=0,sy=0;
+  for(const p of path){sx+=p.x;sy+=p.y;}
+  const netAz = Math.atan2(sx,sy);
+
+  const eW=(majorAxis*scaleVal)/2;
+  const eH=(minorAxis*scaleVal)/2;
+
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(netAz);
+  ctx.beginPath();
+  ctx.ellipse(0,-eW,eH,eW,0,0,2*Math.PI);
+  ctx.fillStyle='rgba(74,92,42,0.25)';
+  ctx.fill();
+  ctx.strokeStyle='#6b7c40';
+  ctx.lineWidth=2;
+  ctx.setLineDash([6,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // axes lines
+  ctx.strokeStyle='rgba(176,184,122,0.4)';
+  ctx.lineWidth=1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(0,eW+10);ctx.lineTo(0,-eW-10);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-eH-10,0);ctx.lineTo(eH+10,0);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // drift path
+  if(path.length>1){
+    ctx.save();
+    ctx.strokeStyle='#d4900a';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    for(let i=1;i<path.length;i++){
+      ctx.lineTo(cx+path[i].x*scaleVal, cy-path[i].y*scaleVal);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // dot at end
+    const lp=path[path.length-1];
+    ctx.fillStyle='#d4900a';
+    ctx.beginPath();
+    ctx.arc(cx+lp.x*scaleVal, cy-lp.y*scaleVal, 4,0,2*Math.PI);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // target crosshair
+  ctx.strokeStyle='#c0392b';
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx-10,cy);ctx.lineTo(cx+10,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-10);ctx.lineTo(cx,cy+10);ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx,cy,6,0,2*Math.PI);
+  ctx.strokeStyle='#c0392b';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+
+  // labels
+  ctx.fillStyle='#b0b87a';
+  ctx.font='10px Share Tech Mono, monospace';
+  ctx.textAlign='center';
+  ctx.fillText(`EIXO MAIOR: ${majorAxis.toFixed(3)} NM`, cx, 13);
+  ctx.fillText(`EIXO MENOR: ${minorAxis.toFixed(3)} NM`, cx, 26);
+  ctx.fillStyle='#c0392b';
+  ctx.fillText('ALVO', cx+14, cy-12);
+
+  // legend
+  ctx.textAlign='left';
+  ctx.fillStyle='#d4900a';
+  ctx.fillText('--- DERIVA', 6, 248);
+  ctx.fillStyle='#6b7c40';
+  ctx.fillText('  ·  PADRÃO 90%', 80, 248);
+}
+
+function dmsToDecimal(d,m,s,hem){
+  var dec = parseFloat(d||0) + parseFloat(m||0)/60 + parseFloat(s||0)/3600;
+  return (hem==='S'||hem==='W') ? -dec : dec;
+}
+function getCoords(){
+  var mode = document.getElementById('ctab-dec').classList.contains('active') ? 'dec' : 'dms';
+  var lat, lon;
+  if(mode==='dec'){
+    lat = parseFloat(document.getElementById('lat-dec').value);
+    lon = parseFloat(document.getElementById('lon-dec').value);
+  } else {
+    lat = dmsToDecimal(
+      document.getElementById('lat-d').value,
+      document.getElementById('lat-m').value,
+      document.getElementById('lat-s').value,
+      document.getElementById('lat-hem').value
+    );
+    lon = dmsToDecimal(
+      document.getElementById('lon-d').value,
+      document.getElementById('lon-m').value,
+      document.getElementById('lon-s').value,
+      document.getElementById('lon-hem').value
+    );
+  }
+  return {lat, lon};
+}
+
+// Pressure levels (hPa) → approximate altitude in feet
+const PRESSURE_ALT = {
+  1000: 364, 975: 1017, 950: 1683, 925: 2500, 900: 3280,
+  850: 4921, 800: 6562, 700: 9843, 600: 13779, 500: 18373
+};
+
+async function fetchWind(){
+  var coords = getCoords();
+  if(isNaN(coords.lat)||isNaN(coords.lon)){
+    document.getElementById('wind-fetch-status').innerHTML =
+      '<div class="status-err">! COORDENADAS INVÁLIDAS — VERIFIQUE OS CAMPOS</div>';
+    return;
+  }
+  var status = document.getElementById('wind-fetch-status');
+  status.innerHTML = '<div class="status-loading">&#9632; CONSULTANDO OPEN-METEO...</div>';
+
+  var pressureLevels = [1000,975,950,925,900,850,800,700];
+  var wspeedParams = pressureLevels.map(p=>'windspeed_'+p+'hPa').join(',');
+  var wdirParams   = pressureLevels.map(p=>'winddirection_'+p+'hPa').join(',');
+
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude='+coords.lat
+    +'&longitude='+coords.lon
+    +'&current_weather=true'
+    +'&hourly='+wspeedParams+','+wdirParams
+    +'&wind_speed_unit=kn'
+    +'&timezone=auto'
+    +'&forecast_days=1';
+
+  try {
+    var resp = await fetch(url);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var data = await resp.json();
+
+    // get current hour index using API local time
+    var localTime = data.current_weather.time; // format: "2024-01-15T14:00"
+    var hourIdx = data.hourly.time.findIndex(function(t){ return t===localTime; });
+    if(hourIdx===-1) hourIdx = new Date().getHours();
+    var hourly = data.hourly;
+
+    // show local timezone info
+    var tz = data.timezone_abbreviation || 'LOCAL';
+
+    // build map: altFeet -> {speed_kt, dir_deg}
+    var windByAlt = {};
+    // surface from current_weather
+    windByAlt[0] = {
+      speed: data.current_weather.windspeed,
+      dir:   data.current_weather.winddirection
+    };
+    pressureLevels.forEach(function(p){
+      var altFt = PRESSURE_ALT[p];
+      var spd = hourly['windspeed_'+p+'hPa'][hourIdx];
+      var dir = hourly['winddirection_'+p+'hPa'][hourIdx];
+      if(spd!==null && spd!==undefined) windByAlt[altFt] = {speed:spd, dir:dir};
+    });
+
+    // save to global cache so row rebuilds don't lose data
+    cachedWindByAlt = windByAlt;
+
+    // fill wind rows
+    applyWindCache();
+
+    // fill target altitude from terrain elevation (meters → feet)
+    if(data.elevation !== undefined && data.elevation !== null){
+      var elevFt = Math.round(data.elevation * 3.28084);
+      document.getElementById('targetAlt').value = elevFt;
+      var elevMsg = ' — ELEVAÇÃO DO ALVO: '+data.elevation.toFixed(0)+' m ('+elevFt+' ft) PREENCHIDA';
+    } else {
+      var elevMsg = '';
+    }
+
+    var localTimeStr = localTime.split('T')[1] || '';
+    status.innerHTML = '<div class="status-ok">&#10003; VENTO OBTIDO — '
+      +coords.lat.toFixed(4)+'°, '+coords.lon.toFixed(4)+'° — '
+      +localTimeStr+' ('+tz+')'+elevMsg+'</div>';
+
+  } catch(e){
+    status.innerHTML = '<div class="status-err">! ERRO AO BUSCAR DADOS: '+e.message+'</div>';
+  }
+}
+
+// ── INIT & EVENT LISTENERS ──
+function showTab(t) {
+  var tabs = ['input','wind','result'];
+  for(var i=0;i<tabs.length;i++){
+    var sec = document.getElementById('sec-'+tabs[i]);
+    var btn = document.getElementById('tab-'+tabs[i]);
+    if(!sec || !btn) continue;
+    if(tabs[i]===t){
+      sec.style.display='block';
+      sec.classList.add('active');
+      btn.classList.add('active');
+    } else {
+      sec.style.display='none';
+      sec.classList.remove('active');
+      btn.classList.remove('active');
+    }
+  }
+  window.scrollTo(0,0);
+}
+
+function onPlatformChange(){
+  var platform = document.getElementById('platform').value;
+  var method = document.getElementById('dissemMethod').value;
+
+  // speed field — only for fixed wing
+  document.getElementById('platform-speed-row').style.display = (platform!=='helo') ? 'block' : 'none';
+
+  // method field — only for fixed wing (helo is instant)
+  document.getElementById('platform-method-row').style.display = (platform!=='helo') ? 'block' : 'none';
+
+  // custom time field
+  document.getElementById('platform-time-row').style.display = (platform!=='helo' && method==='custom') ? 'block' : 'none';
+}
+
+function getDeployTime(){
+  var platform = document.getElementById('platform').value;
+  if(platform==='helo') return 0;
+  var method = document.getElementById('dissemMethod').value;
+  var times = {bag:1, hand:2, box_imp:5, box_static:10, custom:0};
+  if(method==='custom') return parseFloat(document.getElementById('deployTime').value)||0;
+  return times[method]||0;
+}
+
+var _appInited = false;
+function initApp() {
+  if(_appInited) return true;
+  var els = ['tab-input','tab-wind','tab-result','leafSize','paperWeight','poundsQty','releaseAlt'];
+  for(var i=0;i<els.length;i++){
+    if(!document.getElementById(els[i])) return false;
+  }
+  _appInited = true;
+  onLeafChange();
+  return true;
+}
+
+
+function switchCoordTab(mode){
+  document.getElementById('ctab-dec').classList.toggle('active', mode==='dec');
+  document.getElementById('ctab-dms').classList.toggle('active', mode==='dms');
+  document.getElementById('coord-dec').style.display = mode==='dec' ? 'block' : 'none';
+  document.getElementById('coord-dms').style.display = mode==='dms' ? 'block' : 'none';
+}
+
+// Init — just trigger initial render, all events are inline onclick/onchange
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', function(){ onLeafChange(); });
+} else {
+  onLeafChange();
+}
+window.addEventListener('load', function(){ onLeafChange(); });
+</script>
+</body>
+</html>

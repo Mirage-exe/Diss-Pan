@@ -866,16 +866,31 @@ function decToDMS(val, isLat){
   return d+'°'+m+"'"+s+'"'+hem;
 }
 
+function nm(val){ 
+  var m = Math.round(val*1852);
+  return val.toFixed(3)+' NM ('+(m>=1000?(m/1000).toFixed(2)+' km':m+' m')+')';
+}
+function ft(val){
+  var m = Math.round(val*0.3048);
+  return parseInt(val).toLocaleString('pt-BR')+' ft ('+m.toLocaleString('pt-BR')+' m)';
+}
+
 function calculate() {
   const d = getLeafData();
   if (!d) { alert('Selecione tamanho e peso válidos'); return; }
-  const relAlt = parseFloat(document.getElementById('releaseAlt').value)||2000;
+  const relAlt = parseFloat(document.getElementById('releaseAlt').value)||0;
   const tgtAlt = parseFloat(document.getElementById('targetAlt').value)||0;
+
+  // ── VALIDATION ──
+  if(relAlt <= 0){ alert('⚠️ Altitude de lançamento deve ser maior que zero.'); return; }
+  if(tgtAlt >= relAlt){ alert('⚠️ Altitude do alvo ('+tgtAlt+' ft) deve ser MENOR que a altitude de lançamento ('+relAlt+' ft).\n\nLembre: ambas são em ft MSL (nível do mar).'); return; }
   const fallAlt = relAlt - tgtAlt;
+  if(fallAlt < 500){ alert('⚠️ Altura de queda muito pequena ('+fallAlt+' ft). Verifique as altitudes.'); return; }
+  const lbs = parseFloat(document.getElementById('poundsQty').value)||0;
+  if(lbs <= 0){ alert('⚠️ Informe a quantidade de panfletos a lançar (lb).'); return; }
   const sz = document.getElementById('leafSize').value;
   const wt = document.getElementById('paperWeight').value;
   const lpp = (LPP[sz]||{})[wt]||0;
-  const lbs = parseFloat(document.getElementById('poundsQty').value)||0;
   const totalLeaflets = lpp * lbs;
   const platform = document.getElementById('platform').value;
   const acSpeed = platform==='c130' ? 190 : (platform==='fixed' ? parseFloat(document.getElementById('acSpeed').value)||190 : 0);
@@ -1003,18 +1018,47 @@ function renderResults(r) {
       <div class="panel-head"><span class="ph-icon">◈</span><span>Resultados dos Cálculos</span></div>
       <div class="panel-body">
         <div class="metric-grid">
-          <div class="metric"><div class="ml">Deriva Total</div><div class="mv">${totalDrift.toFixed(3)}</div><div class="mu">NM</div></div>
-          <div class="metric"><div class="ml">Desvio Máximo</div><div class="mv">${maxDev.toFixed(3)}</div><div class="mu">NM</div></div>
-          <div class="metric"><div class="ml">Eixo Maior</div><div class="mv">${majorAxis.toFixed(3)}</div><div class="mu">NM</div></div>
-          <div class="metric"><div class="ml">Eixo Menor</div><div class="mv">${minorAxis.toFixed(3)}</div><div class="mu">NM</div></div>
-          <div class="metric"><div class="ml">Área do Padrão</div><div class="mv">${area.toFixed(3)}</div><div class="mu">NM²</div></div>
+          <div class="metric"><div class="ml">Deriva Total</div><div class="mv">${totalDrift.toFixed(3)}</div><div class="mu">NM (${Math.round(totalDrift*1852)} m)</div></div>
+          <div class="metric"><div class="ml">Desvio Máximo</div><div class="mv">${maxDev.toFixed(3)}</div><div class="mu">NM (${Math.round(maxDev*1852)} m)</div></div>
+          <div class="metric"><div class="ml">Eixo Maior</div><div class="mv">${majorAxis.toFixed(3)}</div><div class="mu">NM (${Math.round(majorAxis*1852)} m)</div></div>
+          <div class="metric"><div class="ml">Eixo Menor</div><div class="mv">${minorAxis.toFixed(3)}</div><div class="mu">NM (${Math.round(minorAxis*1852)} m)</div></div>
+          <div class="metric"><div class="ml">Área do Padrão</div><div class="mv">${area.toFixed(3)}</div><div class="mu">NM² (${(area*3.43e6/1e6).toFixed(2)} km²)</div></div>
           <div class="metric"><div class="ml">Total Panfletos</div><div class="mv">${Math.round(totalLeaflets).toLocaleString('pt-BR')}</div><div class="mu">unid</div></div>
         </div>
+        <div class="info-row"><span class="ik">Altura de queda</span><span class="iv">${ft(fallAlt)}</span></div>
         <div class="info-row"><span class="ik">Densidade média/NM²</span><span class="iv">${Math.round(meanDensity).toLocaleString('pt-BR')}</span></div>
         <div class="info-row"><span class="ik">Densidade/100m²</span><span class="iv">${density100.toFixed(2)}</span></div>
       </div>
     </div>
     ${relPtHtml}
+    ${releaseCoords ? `
+    <div class="panel">
+      <div class="panel-head"><span class="ph-icon">◉</span><span>Mapa — Alvo e Ponto de Lançamento</span></div>
+      <div class="panel-body" style="padding:0;overflow:hidden;border-radius:0 0 4px 4px">
+        <iframe id="mapFrame"
+          src="https://www.openstreetmap.org/export/embed.html?bbox=${Math.min(coords.lon,releaseCoords.lon)-0.02},${Math.min(coords.lat,releaseCoords.lat)-0.02},${Math.max(coords.lon,releaseCoords.lon)+0.02},${Math.max(coords.lat,releaseCoords.lat)+0.02}&layer=mapnik&marker=${coords.lat},${coords.lon}"
+          style="width:100%;height:280px;border:none;display:block"
+          loading="lazy">
+        </iframe>
+        <div style="padding:8px 12px;background:var(--bg3);display:flex;gap:16px;flex-wrap:wrap">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--red-alert)">⊕ ALVO: ${decToDMS(coords.lat,true)} ${decToDMS(coords.lon,false)}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--amber-light)">★ LANÇAMENTO: ${decToDMS(releaseCoords.lat,true)} ${decToDMS(releaseCoords.lon,false)}</span>
+        </div>
+        <div style="padding:4px 12px 8px;background:var(--bg3)">
+          <a href="https://maps.google.com/?q=${coords.lat},${coords.lon}&ll=${(coords.lat+releaseCoords.lat)/2},${(coords.lon+releaseCoords.lon)/2}&z=13" 
+             target="_blank"
+             style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">
+            ↗ Abrir no Google Maps
+          </a>
+          &nbsp;&nbsp;
+          <a href="https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lon}#map=13/${(coords.lat+releaseCoords.lat)/2}/${(coords.lon+releaseCoords.lon)/2}"
+             target="_blank"
+             style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">
+            ↗ Abrir no OpenStreetMap
+          </a>
+        </div>
+      </div>
+    </div>` : ''}
     <div class="panel">
       <div class="panel-head"><span class="ph-icon">◉</span><span>Padrão Elíptico — 90% dos Panfletos</span></div>
       <div class="panel-body" style="padding:10px">
@@ -1026,8 +1070,8 @@ function renderResults(r) {
       <div class="panel-body">
         <div class="info-row"><span class="ik">Missão / Produto</span><span class="iv">${document.getElementById('missionNum').value||'—'} / ${document.getElementById('productNum').value||'—'}</span></div>
         <div class="info-row"><span class="ik">Plataforma</span><span class="iv">${platLabel}</span></div>
-        <div class="info-row"><span class="ik">Alt lançamento / Alvo</span><span class="iv">${parseInt(relAlt).toLocaleString()} ft / ${parseInt(tgtAlt).toLocaleString()} ft MSL</span></div>
-        <div class="info-row"><span class="ik">Altura real de queda</span><span class="iv">${parseInt(fallAlt).toLocaleString()} ft</span></div>
+        <div class="info-row"><span class="ik">Alt lançamento / Alvo</span><span class="iv">${ft(relAlt)} / ${ft(tgtAlt)}</span></div>
+        <div class="info-row"><span class="ik">Altura real de queda</span><span class="iv">${ft(fallAlt)}</span></div>
         <div class="info-row"><span class="ik">Tamanho × Gramatura</span><span class="iv">${document.getElementById('leafSize').options[document.getElementById('leafSize').selectedIndex].text.split('—')[0].trim()} / ${wt=='9'?'33':wt=='13'?'49':wt=='16'?'60':wt=='20'?'75':'224'} g/m²</span></div>
         <div class="info-row"><span class="ik">Autorrotação</span><span class="iv">${d.auto?'SIM':'NÃO'}</span></div>
         <div class="info-row"><span class="ik">Taxa de descida / Spread</span><span class="iv">${d.rod} / ${d.sf}</span></div>

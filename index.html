@@ -410,6 +410,8 @@ body {
   border-top: 1px solid var(--border);
 }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -811,13 +813,21 @@ function buildWindRows() {
   if (!d) return;
   const dtfArr = getDTF(d.rod, d.auto);
 
-  // top: first level >= release altitude
-  const topIdx = ALT_LEVELS.findIndex(a=>a*1000>=relAlt);
-  const limit = topIdx===-1 ? ALT_LEVELS.length : topIdx+1;
+  // Find closest ALT_LEVEL to release altitude (round to nearest)
+  const topIdx = ALT_LEVELS.reduce((best, a, i) => 
+    Math.abs(a*1000 - relAlt) < Math.abs(ALT_LEVELS[best]*1000 - relAlt) ? i : best, 0);
 
-  // bottom: first level >= target altitude (don't show layers below target)
-  const botIdx = ALT_LEVELS.findIndex(a=>a*1000>=tgtAlt);
-  const start = botIdx===-1 ? 0 : botIdx;
+  // Bottom: always start from surface (index 0) when target alt = 0
+  // When target alt > 0, find closest level at or just above target alt
+  let start = 0;
+  if(tgtAlt > 0){
+    // find closest level to target altitude
+    start = ALT_LEVELS.reduce((best, a, i) =>
+      Math.abs(a*1000 - tgtAlt) < Math.abs(ALT_LEVELS[best]*1000 - tgtAlt) ? i : best, 0);
+    // but never exclude surface (index 0) — always show at least from surface
+    // only skip surface if target is clearly above 500 ft
+    if(tgtAlt < 500) start = 0;
+  }
 
   const container = document.getElementById('windRows');
   const prev = {};
@@ -829,13 +839,23 @@ function buildWindRows() {
     if(azVal !== '' && azVal !== null) prev['az_'+i] = azVal;
   });
   container.innerHTML='';
-  for(let i=limit-1;i>=start;i--){
+
+  // Add a note showing actual altitude vs table level used
+  const noteEl = document.createElement('div');
+  noteEl.style.cssText='font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-bottom:8px;padding:4px 6px;background:var(--bg3);border-radius:3px;border:1px solid var(--border)';
+  noteEl.innerHTML = `Lançamento: <span style="color:var(--amber)">${relAlt.toLocaleString('pt-BR')} ft</span> → nível tabela: <span style="color:var(--amber)">${ALT_LABELS[topIdx]} (${ALT_LEVELS[topIdx]*1000} ft)</span> &nbsp;|&nbsp; Alvo: <span style="color:var(--khaki-light)">${tgtAlt.toLocaleString('pt-BR')} ft</span> → base tabela: <span style="color:var(--khaki-light)">${ALT_LABELS[start]} (${ALT_LEVELS[start]*1000} ft)</span>`;
+  container.appendChild(noteEl);
+
+  for(let i=topIdx;i>=start;i--){
     const dtf = (dtfArr[i]!==null&&dtfArr[i]!==undefined)?dtfArr[i].toFixed(2):'—';
     const row = document.createElement('div');
     row.className='wind-row'; row.dataset.idx=i;
     const wsVal = prev['ws_'+i] !== undefined ? prev['ws_'+i] : '';
     const azVal = prev['az_'+i] !== undefined ? prev['az_'+i] : '';
-    row.innerHTML=`<span class="wind-alt">${ALT_LABELS[i]}</span>
+    // Show actual altitude range this level represents
+    const altLabel = ALT_LEVELS[i]===0 ? 'SUP' : `${ALT_LABELS[i]}`;
+    const altFt = ALT_LEVELS[i]*1000;
+    row.innerHTML=`<span class="wind-alt" title="${altFt} ft">${altLabel}</span>
       <span class="wind-dtf">${dtf}</span>
       <input class="ws" type="number" placeholder="kt" min="0" value="${wsVal}"/>
       <input class="az" type="number" placeholder="°" min="0" max="360" value="${azVal}"/>`;
@@ -1035,27 +1055,14 @@ function renderResults(r) {
     <div class="panel">
       <div class="panel-head"><span class="ph-icon">◉</span><span>Mapa — Alvo e Ponto de Lançamento</span></div>
       <div class="panel-body" style="padding:0;overflow:hidden;border-radius:0 0 4px 4px">
-        <iframe id="mapFrame"
-          src="https://www.openstreetmap.org/export/embed.html?bbox=${Math.min(coords.lon,releaseCoords.lon)-0.02},${Math.min(coords.lat,releaseCoords.lat)-0.02},${Math.max(coords.lon,releaseCoords.lon)+0.02},${Math.max(coords.lat,releaseCoords.lat)+0.02}&layer=mapnik&marker=${coords.lat},${coords.lon}"
-          style="width:100%;height:280px;border:none;display:block"
-          loading="lazy">
-        </iframe>
-        <div style="padding:8px 12px;background:var(--bg3);display:flex;gap:16px;flex-wrap:wrap">
-          <span style="font-family:var(--mono);font-size:10px;color:var(--red-alert)">⊕ ALVO: ${decToDMS(coords.lat,true)} ${decToDMS(coords.lon,false)}</span>
+        <div id="leafletMap" style="width:100%;height:300px"></div>
+        <div style="padding:8px 12px;background:var(--bg3);display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+          <span style="font-family:var(--mono);font-size:10px;color:#ef5350">⊕ ALVO: ${decToDMS(coords.lat,true)} ${decToDMS(coords.lon,false)}</span>
           <span style="font-family:var(--mono);font-size:10px;color:var(--amber-light)">★ LANÇAMENTO: ${decToDMS(releaseCoords.lat,true)} ${decToDMS(releaseCoords.lon,false)}</span>
         </div>
-        <div style="padding:4px 12px 8px;background:var(--bg3)">
-          <a href="https://maps.google.com/?q=${coords.lat},${coords.lon}&ll=${(coords.lat+releaseCoords.lat)/2},${(coords.lon+releaseCoords.lon)/2}&z=13" 
-             target="_blank"
-             style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">
-            ↗ Abrir no Google Maps
-          </a>
-          &nbsp;&nbsp;
-          <a href="https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lon}#map=13/${(coords.lat+releaseCoords.lat)/2}/${(coords.lon+releaseCoords.lon)/2}"
-             target="_blank"
-             style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">
-            ↗ Abrir no OpenStreetMap
-          </a>
+        <div style="padding:4px 12px 10px;background:var(--bg3);display:flex;gap:16px;flex-wrap:wrap">
+          <a href="https://maps.google.com/?q=${coords.lat},${coords.lon}" target="_blank" style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">↗ Alvo no Google Maps</a>
+          <a href="https://maps.google.com/?q=${releaseCoords.lat},${releaseCoords.lon}" target="_blank" style="font-family:var(--mono);font-size:10px;color:var(--khaki-light);text-decoration:none">↗ Lançamento no Google Maps</a>
         </div>
       </div>
     </div>` : ''}
@@ -1083,6 +1090,33 @@ function renderResults(r) {
   var btnNova = document.getElementById('btn-nova-missao');
   if(btnNova) btnNova.addEventListener('click', function(){ showTab('input'); });
   setTimeout(()=>drawEllipse(majorAxis,minorAxis,path,drifts),60);
+
+  // Init Leaflet map if coords available
+  if(releaseCoords && !isNaN(coords.lat)){
+    setTimeout(function(){
+      var mapEl = document.getElementById('leafletMap');
+      if(!mapEl) return;
+      // destroy previous map instance if any
+      if(window._leafletMap){ window._leafletMap.remove(); window._leafletMap=null; }
+      var midLat = (coords.lat + releaseCoords.lat)/2;
+      var midLon = (coords.lon + releaseCoords.lon)/2;
+      var map = L.map('leafletMap').setView([midLat, midLon], 13);
+      window._leafletMap = map;
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OpenStreetMap contributors', maxZoom:18
+      }).addTo(map);
+      // Target marker — red
+      var redIcon = L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#ef5350;border:2px solid #fff;border-radius:50%;box-shadow:0 0 6px #ef5350"></div>', iconSize:[14,14], iconAnchor:[7,7]});
+      L.marker([coords.lat, coords.lon], {icon:redIcon}).addTo(map).bindPopup('<b>ALVO</b>').openPopup();
+      // Launch marker — amber star
+      var starIcon = L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#f0b030;border:2px solid #fff;border-radius:50%;box-shadow:0 0 6px #f0b030"></div>', iconSize:[14,14], iconAnchor:[7,7]});
+      L.marker([releaseCoords.lat, releaseCoords.lon], {icon:starIcon}).addTo(map).bindPopup('<b>PONTO DE LANÇAMENTO</b>');
+      // Line between them
+      L.polyline([[coords.lat,coords.lon],[releaseCoords.lat,releaseCoords.lon]],{color:'#f0b030',weight:2,dashArray:'6,4',opacity:0.8}).addTo(map);
+      // Fit bounds
+      map.fitBounds([[coords.lat,coords.lon],[releaseCoords.lat,releaseCoords.lon]], {padding:[30,30]});
+    }, 100);
+  }
 }
 
 function drawEllipse(majorAxis, minorAxis, path) {
@@ -1100,7 +1134,8 @@ function drawEllipse(majorAxis, minorAxis, path) {
   for(let j=0;j<260;j+=30){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(W,j);ctx.stroke();}
 
   const cx=W/2, cy=210;
-  const scaleVal = Math.min((W-50)/(majorAxis*2+.01),(180)/(majorAxis*2+.01));
+  const maxDim = Math.max(majorAxis, minorAxis, 0.15);
+  const scaleVal = Math.min((W-80)/(maxDim*2+.01), 160/(maxDim*2+.01));
 
   let sx=0,sy=0;
   for(const p of path){sx+=p.x;sy+=p.y;}
@@ -1207,6 +1242,72 @@ function getCoords(){
   return {lat, lon};
 }
 
+// ── DECLINAÇÃO MAGNÉTICA & CONVERGÊNCIA GRID ──
+// Baseado no IGRF-13 / WMM2020 — precisão ~0.5° para América do Sul
+
+function assLegendre(n,m,x){
+  if(n===1&&m===0)return x;
+  if(n===1&&m===1)return Math.sqrt(1-x*x);
+  if(n===2&&m===0)return 0.5*(3*x*x-1);
+  if(n===2&&m===1)return 3*x*Math.sqrt(1-x*x);
+  if(n===2&&m===2)return 3*(1-x*x);
+  if(n===3&&m===0)return 0.5*x*(5*x*x-3);
+  if(n===3&&m===1)return 1.5*(5*x*x-1)*Math.sqrt(1-x*x);
+  if(n===3&&m===2)return 15*x*(1-x*x);
+  if(n===3&&m===3)return 15*Math.pow(1-x*x,1.5);
+  return 0;
+}
+function assLegendreD(n,m,x){
+  var s=Math.sqrt(1-x*x+1e-10);
+  if(n===1&&m===0)return 1;
+  if(n===1&&m===1)return -x/s;
+  if(n===2&&m===0)return 3*x;
+  if(n===2&&m===1)return 3*(s-x*x/s);
+  if(n===2&&m===2)return -6*x;
+  if(n===3&&m===0)return 0.5*(15*x*x-3);
+  if(n===3&&m===1)return 15*x*s-1.5*(5*x*x-1)*x/s;
+  if(n===3&&m===2)return 15*(1-x*x)-30*x*x;
+  if(n===3&&m===3)return -45*x*Math.pow(1-x*x,0.5);
+  return 0;
+}
+
+function calcDeclination(lat,lon){
+  // WMM2020 coefficients (g,h in nT), epoch 2024.5
+  var wmm=[
+    [1,0,-29404.5,0],[1,1,-1450.7,4652.9],
+    [2,0,-2500.0,0],[2,1,2982.0,-2991.6],[2,2,1676.7,-734.8],
+    [3,0,1363.9,0],[3,1,-2381.0,282.9],[3,2,1236.2,-403.0],[3,3,525.7,-111.3]
+  ];
+  var phi=lat*Math.PI/180, lam=lon*Math.PI/180;
+  var a=6371200, r=6371200;
+  var Bx=0, By=0;
+  wmm.forEach(function(c){
+    var n=c[0],m=c[1],g=c[2],h=c[3];
+    var P=assLegendre(n,m,Math.sin(phi));
+    var dP=assLegendreD(n,m,Math.sin(phi))*Math.cos(phi);
+    var cosml=Math.cos(m*lam),sinml=Math.sin(m*lam);
+    var ar=Math.pow(a/r,n+2);
+    Bx+=ar*(n+1)*P*(g*cosml+h*sinml)*(-1);
+    By+=ar*(m/(Math.cos(phi)+1e-10))*P*(-g*sinml+h*cosml);
+  });
+  return Math.atan2(By,-Bx)*180/Math.PI;
+}
+
+function getGridConvergence(lat,lon){
+  var zone=Math.floor((lon+180)/6)+1;
+  var lon0=(zone-1)*6-180+3;
+  var latR=lat*Math.PI/180;
+  var deltaLon=(lon-lon0)*Math.PI/180;
+  return Math.atan(Math.tan(deltaLon)*Math.sin(latR))*180/Math.PI;
+}
+
+function magToGrid(azMag,lat,lon){
+  var decl=calcDeclination(lat,lon);
+  var conv=getGridConvergence(lat,lon);
+  var azGrid=azMag+decl-conv;
+  return ((azGrid%360)+360)%360;
+}
+
 // Pressure levels (hPa) → approximate altitude in feet
 const PRESSURE_ALT = {
   1000: 364, 975: 1017, 950: 1683, 925: 2500, 900: 3280,
@@ -1273,15 +1374,51 @@ async function fetchWind(){
     if(data.elevation !== undefined && data.elevation !== null){
       var elevFt = Math.round(data.elevation * 3.28084);
       document.getElementById('targetAlt').value = elevFt;
-      var elevMsg = ' — ELEVAÇÃO DO ALVO: '+data.elevation.toFixed(0)+' m ('+elevFt+' ft) PREENCHIDA';
+      buildWindRows();
+      var elevMsg = ' — ELEVAÇÃO: '+data.elevation.toFixed(0)+' m ('+elevFt+' ft)';
     } else {
+      buildWindRows();
       var elevMsg = '';
+    }
+
+    // Calculate magnetic declination and grid convergence
+    var decl = calcDeclination(coords.lat, coords.lon);
+    var conv = getGridConvergence(coords.lat, coords.lon);
+    var declSign = decl >= 0 ? '+' : '';
+    var convSign = conv >= 0 ? '+' : '';
+
+    // Convert all wind directions from magnetic to grid
+    var rows = document.querySelectorAll('#windRows .wind-row');
+    rows.forEach(function(row){
+      var azInput = row.querySelector('.az');
+      if(azInput && azInput.value !== ''){
+        var azMag = parseFloat(azInput.value);
+        var azGrid = magToGrid(azMag, coords.lat, coords.lon);
+        azInput.value = Math.round(azGrid);
+      }
+    });
+    // Also update cache with converted values
+    if(cachedWindByAlt){
+      Object.keys(cachedWindByAlt).forEach(function(k){
+        if(cachedWindByAlt[k] && cachedWindByAlt[k].dir !== undefined){
+          cachedWindByAlt[k].dirGrid = magToGrid(cachedWindByAlt[k].dir, coords.lat, coords.lon);
+          cachedWindByAlt[k].dir = cachedWindByAlt[k].dirGrid;
+        }
+      });
     }
 
     var localTimeStr = localTime.split('T')[1] || '';
     status.innerHTML = '<div class="status-ok">&#10003; VENTO OBTIDO — '
       +coords.lat.toFixed(4)+'°, '+coords.lon.toFixed(4)+'° — '
-      +localTimeStr+' ('+tz+')'+elevMsg+'</div>';
+      +localTimeStr+' ('+tz+')'+elevMsg+'</div>'
+      +'<div style="font-family:var(--mono);font-size:10px;margin-top:6px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;line-height:1.8">'
+      +'<span style="color:var(--amber)">DECLINAÇÃO MAGNÉTICA: '+declSign+decl.toFixed(2)+'°</span>'
+      +' &nbsp;|&nbsp; '
+      +'<span style="color:var(--khaki-light)">CONVERGÊNCIA GRID: '+convSign+conv.toFixed(2)+'°</span>'
+      +' &nbsp;|&nbsp; '
+      +'<span style="color:#81c784">AZIMUTES JÁ CONVERTIDOS PARA GRID ✓</span>'
+      +'<br><span style="color:var(--text-dim)">Az_grid = Az_mag ('+declSign+decl.toFixed(1)+'° decl) ('+convSign+(-conv).toFixed(1)+'° conv)</span>'
+      +'</div>';
 
   } catch(e){
     status.innerHTML = '<div class="status-err">! ERRO AO BUSCAR DADOS: '+e.message+'</div>';

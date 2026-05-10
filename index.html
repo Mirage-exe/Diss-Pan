@@ -752,6 +752,68 @@ body {
   </div>
 
   <div class="panel">
+    <div class="panel-head"><span class="ph-icon">&#9678;</span><span>Coordenada do Alvo — Busca Automática de Vento e Elevação</span></div>
+    <div class="panel-body">
+      <div class="coord-tabs">
+        <button type="button" class="coord-tab active" id="ctab-dec" onclick="switchCoordTab('dec')">DECIMAL</button>
+        <button type="button" class="coord-tab" id="ctab-dms" onclick="switchCoordTab('dms')">GMS</button>
+      </div>
+      <div id="coord-dec">
+        <div class="grid2">
+          <div class="field"><label>Latitude (ex: -15.7801)</label><input id="lat-dec" type="number" step="0.0001" placeholder="-15.7801"/></div>
+          <div class="field"><label>Longitude (ex: -47.9292)</label><input id="lon-dec" type="number" step="0.0001" placeholder="-47.9292"/></div>
+        </div>
+      </div>
+      <div id="coord-dms" style="display:none">
+        <div style="margin-bottom:8px">
+          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Latitude</label>
+          <div class="dms-row">
+            <div class="field" style="margin:0"><input id="lat-d" type="number" placeholder="15" min="0" max="90"/><span class="dms-lbl">°</span></div>
+            <div class="field" style="margin:0"><input id="lat-m" type="number" placeholder="46" min="0" max="59"/><span class="dms-lbl">'</span></div>
+            <div class="field" style="margin:0"><input id="lat-s" type="number" placeholder="48" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
+            <select id="lat-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
+              <option value="S">S</option><option value="N">N</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Longitude</label>
+          <div class="dms-row">
+            <div class="field" style="margin:0"><input id="lon-d" type="number" placeholder="47" min="0" max="180"/><span class="dms-lbl">°</span></div>
+            <div class="field" style="margin:0"><input id="lon-m" type="number" placeholder="55" min="0" max="59"/><span class="dms-lbl">'</span></div>
+            <div class="field" style="margin:0"><input id="lon-s" type="number" placeholder="45" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
+            <select id="lon-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
+              <option value="W">W</option><option value="E">E</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- Date/time planning -->
+      <div style="margin-top:10px">
+        <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:6px">&#9201; Data e Hora da Missão (Horário de Brasília)</label>
+        <div class="grid2">
+          <div class="field">
+            <label>Data</label>
+            <input type="date" id="missionDate" style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright);background:var(--bg2)"/>
+          </div>
+          <div class="field">
+            <label>Hora (Brasília)</label>
+            <input type="time" id="missionTime" value="18:00" style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright);background:var(--bg2)"/>
+          </div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px">
+          Previsão disponível até <span style="color:var(--amber)">16 dias</span> à frente. Ao buscar, a elevação do alvo é preenchida automaticamente.
+        </div>
+      </div>
+      <button type="button" class="btn" id="btn-fetch-wind" style="margin-top:10px" onclick="fetchWind()">&#9762; BUSCAR VENTO E ELEVAÇÃO DO ALVO</button>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:6px;padding:5px 8px;background:var(--bg3);border-radius:3px;border:1px solid var(--border)">
+        &#9432; Azimutes em <span style="color:#81c784">Norte Verdadeiro</span> — compatível com Google Maps e Google Earth.
+      </div>
+      <div id="wind-fetch-status"></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="panel-head"><span class="ph-icon">◈</span><span>Panfleto — Tabelas H-1 / H-2</span></div>
     <div class="panel-body">
       <div class="grid2">
@@ -799,54 +861,6 @@ body {
 
 <!-- ══ SECTION 2: VENTO ══ -->
 <div class="section" id="sec-wind">
-
-  <div class="panel">
-    <div class="panel-head"><span class="ph-icon">&#9678;</span><span>Coordenada do Alvo — Busca Automática de Vento</span></div>
-    <div class="panel-body">
-      <div class="coord-tabs">
-        <button type="button" class="coord-tab active" id="ctab-dec" onclick="switchCoordTab('dec')">DECIMAL</button>
-        <button type="button" class="coord-tab" id="ctab-dms" onclick="switchCoordTab('dms')">GMS</button>
-      </div>
-
-      <div id="coord-dec">
-        <div class="grid2">
-          <div class="field"><label>Latitude (ex: -15.7801)</label><input id="lat-dec" type="number" step="0.0001" placeholder="-15.7801"/></div>
-          <div class="field"><label>Longitude (ex: -47.9292)</label><input id="lon-dec" type="number" step="0.0001" placeholder="-47.9292"/></div>
-        </div>
-      </div>
-
-      <div id="coord-dms" style="display:none">
-        <div style="margin-bottom:8px">
-          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Latitude</label>
-          <div class="dms-row">
-            <div class="field" style="margin:0"><input id="lat-d" type="number" placeholder="15" min="0" max="90"/><span class="dms-lbl">°</span></div>
-            <div class="field" style="margin:0"><input id="lat-m" type="number" placeholder="46" min="0" max="59"/><span class="dms-lbl">'</span></div>
-            <div class="field" style="margin:0"><input id="lat-s" type="number" placeholder="48" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
-            <select id="lat-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
-              <option value="S">S</option><option value="N">N</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style="font-family:var(--mono);font-size:10px;color:var(--khaki);letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:4px">Longitude</label>
-          <div class="dms-row">
-            <div class="field" style="margin:0"><input id="lon-d" type="number" placeholder="47" min="0" max="180"/><span class="dms-lbl">°</span></div>
-            <div class="field" style="margin:0"><input id="lon-m" type="number" placeholder="55" min="0" max="59"/><span class="dms-lbl">'</span></div>
-            <div class="field" style="margin:0"><input id="lon-s" type="number" placeholder="45" min="0" max="59" step="0.1"/><span class="dms-lbl">"</span></div>
-            <select id="lon-hem" style="width:auto;padding:7px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:13px;color:var(--text-bright)">
-              <option value="W">W</option><option value="E">E</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <button type="button" class="btn" id="btn-fetch-wind" style="margin-top:10px" onclick="fetchWind()">&#9762; BUSCAR VENTO AUTOMATICAMENTE</button>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:6px;padding:5px 8px;background:var(--bg3);border-radius:3px;border:1px solid var(--border)">
-        &#9432; Todos os azimutes são em <span style="color:#81c784">Norte Verdadeiro</span> — compatível com Google Maps e Google Earth. Vento, ponto de lançamento e azimute de abordagem usam a mesma referência.
-      </div>
-      <div id="wind-fetch-status"></div>
-    </div>
-  </div>
 
   <div class="panel">
     <div class="panel-head"><span class="ph-icon">&#10148;</span><span>Vento por Altitude — Tabelas H-3 / H-4</span></div>
@@ -1116,11 +1130,34 @@ function calculate() {
   const dtfArr = getDTF(d.rod, d.auto);
   let drifts = [];
   rows.forEach((r)=>{
-    const tableIdx = parseInt(r.dataset.idx); // real index into ALT_LEVELS/dtfArr
+    const tableIdx = parseInt(r.dataset.idx);
     const ws = parseFloat(r.querySelector('.ws').value)||0;
     const az = parseFloat(r.querySelector('.az').value)||0;
-    const dtf = (dtfArr[tableIdx]!==null && dtfArr[tableIdx]!==undefined) ? dtfArr[tableIdx] : 0;
-    drifts.push({dist:dtf*ws, az, alt:ALT_LABELS[tableIdx], dtf, tableIdx});
+    const rawDtf = (dtfArr[tableIdx]!==null && dtfArr[tableIdx]!==undefined) ? dtfArr[tableIdx] : 0;
+
+    // ── INTERPOLAÇÃO PROPORCIONAL ──
+    // O vento do nível Nk afeta a queda DE Nk ATÉ (N-1)k
+    // Ex: vento de 2k afeta a queda de 2.000ft até 1.000ft
+    //     vento de 1k afeta a queda de 1.000ft até SUP
+    const levelAlt = ALT_LEVELS[tableIdx] * 1000;
+    const belowAlt = tableIdx > 0 ? ALT_LEVELS[tableIdx-1] * 1000 : 0;
+
+    let fraction;
+    if(tableIdx === 0) {
+      // SUP: afeta os últimos metros (representado como 0-500ft)
+      const layerTop = 500;
+      const effTop = Math.min(relAlt, layerTop);
+      const effBot = Math.max(tgtAlt, 0);
+      fraction = (effTop > effBot) ? (effTop - effBot) / layerTop : 0;
+    } else {
+      // Outros níveis: camada de belowAlt até levelAlt
+      const effTop = Math.min(relAlt, levelAlt);
+      const effBot = Math.max(tgtAlt, belowAlt);
+      fraction = (effTop > effBot) ? (effTop - effBot) / (levelAlt - belowAlt) : 0;
+    }
+
+    const dtfEff = rawDtf * fraction;
+    drifts.push({dist:dtfEff*ws, az, alt:ALT_LABELS[tableIdx], dtf:dtfEff, rawDtf, fraction, tableIdx});
   });
   let x=0,y=0;
   const path=[{x:0,y:0}];
@@ -1483,17 +1520,33 @@ async function fetchWind(){
     +'&hourly='+wspeedParams+','+wdirParams
     +'&wind_speed_unit=kn'
     +'&timezone=auto'
-    +'&forecast_days=1';
+    +'&forecast_days=16';
 
   try {
     var resp = await fetch(url);
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     var data = await resp.json();
 
-    // get current hour index using API local time
-    var localTime = data.current_weather.time; // format: "2024-01-15T14:00"
-    var hourIdx = data.hourly.time.findIndex(function(t){ return t===localTime; });
-    if(hourIdx===-1) hourIdx = new Date().getHours();
+    // Determine target datetime — use mission date/time if set, else current
+    var missionDate = document.getElementById('missionDate').value; // "2024-01-15"
+    var missionTime = document.getElementById('missionTime').value; // "18:00"
+    var targetDateTime;
+    if(missionDate && missionTime){
+      // Convert Brasília time (UTC-3) to the local time string the API uses
+      targetDateTime = missionDate + 'T' + missionTime;
+    } else {
+      targetDateTime = data.current_weather.time;
+    }
+
+    // Find closest hour in API response
+    var hourIdx = data.hourly.time.findIndex(function(t){ return t===targetDateTime; });
+    if(hourIdx===-1){
+      // Find closest available hour
+      hourIdx = data.hourly.time.reduce(function(best, t, i){
+        return Math.abs(new Date(t)-new Date(targetDateTime)) < Math.abs(new Date(data.hourly.time[best])-new Date(targetDateTime)) ? i : best;
+      }, 0);
+    }
+    var localTime = data.hourly.time[hourIdx];
     var hourly = data.hourly;
 
     // show local timezone info
@@ -1594,6 +1647,13 @@ function initApp() {
     if(!document.getElementById(els[i])) return false;
   }
   _appInited = true;
+  // Set default mission date to today
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth()+1).padStart(2,'0');
+  var dd = String(today.getDate()).padStart(2,'0');
+  var dateEl = document.getElementById('missionDate');
+  if(dateEl) dateEl.value = yyyy+'-'+mm+'-'+dd;
   onLeafChange();
   return true;
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PSYOP — Leaflet Drop Calculator</title>
+<title>Lançamento de Panfleto</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -1517,7 +1517,7 @@ async function fetchWind(){
   var url = 'https://api.open-meteo.com/v1/forecast?latitude='+coords.lat
     +'&longitude='+coords.lon
     +'&current_weather=true'
-    +'&hourly='+wspeedParams+','+wdirParams
+    +'&hourly=windspeed_10m,winddirection_10m,'+wspeedParams+','+wdirParams
     +'&wind_speed_unit=kn'
     +'&timezone=auto'
     +'&forecast_days=16';
@@ -1554,10 +1554,10 @@ async function fetchWind(){
 
     // build map: altFeet -> {speed_kt, dir_deg}
     var windByAlt = {};
-    // surface from current_weather
+    // surface (10m) — use hourly at mission hour (not current_weather which is always NOW)
     windByAlt[0] = {
-      speed: data.current_weather.windspeed,
-      dir:   data.current_weather.winddirection
+      speed: hourly['windspeed_10m'][hourIdx] || data.current_weather.windspeed,
+      dir:   hourly['winddirection_10m'][hourIdx] || data.current_weather.winddirection
     };
     pressureLevels.forEach(function(p){
       var altFt = PRESSURE_ALT[p];
